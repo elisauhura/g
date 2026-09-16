@@ -5,7 +5,7 @@ The initial runtime containers are header-only in [g.h](../../include/g.h).
 | G type | C runtime representation |
 | --- | --- |
 | `[]T`, ``[`symbol]T`` | Native C arrays/pointers; hints belong to the transpiler |
-| `[#]T` | `g_array`: borrowed storage, length, and element size |
+| `[#]T` | `g_array`: borrowed storage, element count, and element byte length |
 | `[#?]T` | `g_vec`: owned, growable contiguous storage |
 | `[#K]V` | `g_dict`: hash table with copied keys and values |
 | `[#K]()` | `g_set`: dictionary storage without values |
@@ -17,7 +17,9 @@ Use `g_ring_push_back` with `g_ring_pop_front` for FIFO or
 Out-of-range access returns null; empty pop and missing-key removal return
 `G_NOT_FOUND`.
 
-Containers use byte copies and explicit element sizes. Initialize with
+Containers use byte copies. `count` is the number of elements; `len` is the
+element byte length. Dictionaries use `key_len` and `value_len`, and sets expose
+`g_set_count`. This replaces the original count-as-`len` API. Initialize with
 `sizeof(T)`; the generated G bindings will provide type checking. They do not
 yet implement G ownership, element destructors, or automatic reference counting.
 A dictionary key must remain stable after insertion; keys are never exposed as

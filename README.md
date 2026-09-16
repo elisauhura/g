@@ -6,6 +6,8 @@ G transpiles to C and is tightly coupled to a custom C library named `g`, which 
 
 The draft [build system specification](spec/build.md) describes project organization, G and C integration, and the build flow.
 
+The [terminology specification](spec/terminology.md) defines count, byte length, and string terminology.
+
 ## Goals
 
 - **Build system:** Manage G and C files across platforms with a custom build system.
@@ -30,6 +32,7 @@ tests/<test name>/                    Test implementations
 spec/                                Language and build specifications
     G.md                             Draft G language specification
     build.md                         Draft build system specification
+    terminology.md                   Shared language and runtime terminology
 docs/
     md/                              Generated Markdown documentation
     html/                            Generated HTML documentation
@@ -41,3 +44,7 @@ Tasks.md                             Task tracking
 Changelog                            Change history
 project.g                            Root project configuration and dependencies
 ```
+
+## Testing
+
+The [test library](lib/test/README.md) provides nested tests, artifact hooks, benchmarks, JSON reports, and streamed test events. Registration is explicit until the G build tool can generate it.

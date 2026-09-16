@@ -126,11 +126,13 @@ typedef enum astg_type_kind {
     ASTG_TYPE_USIZE, ASTG_TYPE_ISIZE,
     ASTG_TYPE_PTR,
     ASTG_TYPE_F16, ASTG_TYPE_F32, ASTG_TYPE_F64,
-    ASTG_TYPE_CSTR, /* Exact definition remains open. */
+    ASTG_TYPE_CSTR, /* Null-terminated C string. */
+    ASTG_TYPE_STR, /* Byte string with explicit len, no null terminator. */
+    ASTG_TYPE_RC, ASTG_TYPE_ID, ASTG_TYPE_CLASS,
     ASTG_TYPE_NAMED,
     ASTG_TYPE_POINTER,       /* ^T */
     ASTG_TYPE_C_ARRAY,       /* []T or [`symbol]T */
-    ASTG_TYPE_ARRAY,         /* [#]T, with length */
+    ASTG_TYPE_ARRAY,         /* [#]T, with element count */
     ASTG_TYPE_DICTIONARY,    /* [#K]V */
     ASTG_TYPE_SET,           /* [#K]() */
     ASTG_TYPE_VECTOR,        /* [#?]T */

@@ -47,7 +47,7 @@ static void test_arrays_vectors(void) {
     assert(g_vec_push(&vector, g_vec_at(&vector, 2)) == G_OK);
     assert(*(int *)g_vec_at(&vector, 4) == 2);
     for (i = 5; i < 1000; ++i) assert(g_vec_push(&vector, &i) == G_OK);
-    assert(g_vec_at(&vector, vector.len) == NULL);
+    assert(g_vec_at(&vector, vector.count) == NULL);
     for (i = 999; i >= 5; --i) {
         assert(g_vec_pop(&vector, &value) == G_OK);
         assert(value == i);
@@ -55,9 +55,9 @@ static void test_arrays_vectors(void) {
     assert(g_vec_reserve(&vector, (usize)SIZE_MAX) == G_OVERFLOW);
     state.fail_at = state.calls + 1;
     assert(g_vec_reserve(&vector, vector.capacity + 1) == G_OUT_OF_MEMORY);
-    assert(vector.len == 5 && *(int *)g_vec_at(&vector, 4) == 2);
+    assert(vector.count == 5 && *(int *)g_vec_at(&vector, 4) == 2);
     g_vec_clear(&vector);
-    assert(vector.len == 0 && vector.capacity > 0);
+    assert(vector.count == 0 && vector.capacity > 0);
     g_vec_destroy(&vector);
     assert(state.live == 0);
 
@@ -66,7 +66,7 @@ static void test_arrays_vectors(void) {
     for (i = 0; i < 4; ++i) assert(g_vec_push(&vector, &i) == G_OK);
     state.fail_at = state.calls + 1;
     assert(g_vec_push(&vector, &i) == G_OUT_OF_MEMORY);
-    assert(vector.len == 4 && *(int *)g_vec_at(&vector, 3) == 3);
+    assert(vector.count == 4 && *(int *)g_vec_at(&vector, 3) == 3);
     g_vec_destroy(&vector);
     assert(state.live == 0);
 }
@@ -96,7 +96,7 @@ static void test_rings(void) {
     for (i = 4; i < 6; ++i) assert(g_ring_push_back(&ring, &i) == G_OK);
     state.fail_at = state.calls + 1;
     assert(g_ring_push_back(&ring, &i) == G_OUT_OF_MEMORY);
-    assert(ring.len == 4 && *(int *)g_ring_at(&ring, 0) == 2);
+    assert(ring.count == 4 && *(int *)g_ring_at(&ring, 0) == 2);
     state.fail_at = 0;
     /* Growth from a wrapped ring, with an internal source. */
     assert(g_ring_push_back(&ring, g_ring_at(&ring, 1)) == G_OK);
@@ -127,11 +127,11 @@ static void test_dict_set(void) {
         value = i * 7;
         assert(g_dict_put(&dict, &i, &value) == G_OK);
     }
-    assert(dict.len == 200);
+    assert(dict.count == 200);
     for (i = 0; i < 200; ++i)
         assert(*(const int *)g_dict_get_const(&dict, &i) == i * 7);
     i = 12; value = 900;
-    assert(g_dict_put(&dict, &i, &value) == G_OK && dict.len == 200);
+    assert(g_dict_put(&dict, &i, &value) == G_OK && dict.count == 200);
     assert(*(int *)g_dict_get(&dict, &i) == 900);
     for (i = 0; i < 200; i += 2) assert(g_dict_remove(&dict, &i) == G_OK);
     for (i = 0; i < 200; ++i) assert(g_dict_contains(&dict, &i) == (i % 2 != 0));
@@ -139,7 +139,7 @@ static void test_dict_set(void) {
     assert(g_dict_get(&dict, &i) == NULL);
     assert(g_dict_remove(&dict, &i) == G_NOT_FOUND);
     g_dict_clear(&dict);
-    assert(dict.len == 0);
+    assert(dict.count == 0);
     assert(g_dict_put(&dict, &i, &i) == G_OK);
     g_dict_destroy(&dict);
     assert(state.live == 0);
@@ -149,7 +149,7 @@ static void test_dict_set(void) {
         assert(g_set_add(&set, &i) == G_OK);
         assert(g_set_add(&set, &i) == G_OK);
     }
-    assert(g_set_len(&set) == 100);
+    assert(g_set_count(&set) == 100);
     for (i = 0; i < 100; ++i) {
         assert(g_set_contains(&set, &i));
         assert(g_set_remove(&set, &i) == G_OK);
@@ -172,7 +172,7 @@ static void test_dict_failures(void) {
         live = state.live;
         state.fail_at = state.calls + failure;
         assert(g_dict_put(&dict, &value, &value) == G_OUT_OF_MEMORY);
-        assert(dict.len == 6 && state.live == live);
+        assert(dict.count == 6 && state.live == live);
         assert(!g_dict_contains(&dict, &value));
         for (i = 0; i < 6; ++i) assert(*(int *)g_dict_get(&dict, &i) == i);
         state.fail_at = 0;

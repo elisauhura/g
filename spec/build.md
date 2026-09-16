@@ -77,6 +77,31 @@ This is an outline of responsibilities, not a fixed execution order or a command
 specification. The task graph, compiler invocation, link behavior, and output
 formats remain to be specified.
 
+### 4.1. Frontend and backend interfaces
+
+The initial C interfaces are declared in [buildfe.h](../include/buildfe.h) and
+[buildbe.h](../include/buildbe.h). These headers define contracts; their build
+operations are not implemented yet.
+
+The frontend plans source staging, dependencies, G translation, and library
+header generation. Existing C files are copied into the target's source tree,
+preserving relative paths and local header resolution, and compiled from those
+copies. Future G-to-C translation writes into the same tree. Backend declarations
+cover Windows/MSVC, Linux/GCC, Linux/Clang, and Darwin/Clang.
+
+Copy stages default to timestamp-based incremental selection: matching reliable
+modification times and file sizes allow an existing destination to be reused.
+Missing or unreliable metadata forces a full copy. Metadata read errors fail
+the operation. An explicit always-copy mode handles changes that timestamps
+cannot detect. This selects whole files to copy, not byte ranges, and does not
+by itself establish that compilation or linking can be skipped.
+
+Cleanup plans select unit or target outputs, with separate flags for staged
+sources, intermediates, and final products. They expose an explicit owned-file
+list, support dry runs, and invalidate affected incremental state. Shared outputs
+are retained when still owned by unselected units. Cleanup is confined to recorded
+outputs under the target output root and never removes original sources.
+
 ## 5. Targets and output layout
 
 ### 5.1. Target dimensions

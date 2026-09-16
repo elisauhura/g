@@ -99,8 +99,8 @@ The `@c` annotation preserves the C entry-point name `main`.
 
 Here, `count int` declares a parameter named `count` of type `int`, and
 `a int := 0` declares and initializes a local variable. The array size hint on
-`argv` refers to `count`. The example uses `cstr` for C strings; its precise type
-definition and interoperability rules remain to be specified.
+`argv` refers to `count`. The example uses `cstr` for null-terminated C strings;
+further interoperability rules remain to be specified.
 
 ### 4.2. Optional semicolons
 
@@ -167,8 +167,21 @@ For example:
 @"hello"
 ```
 
-The string type, length representation, encoding, and escape rules remain to be
-specified.
+The C runtime defines `cstr` as a null-terminated C string pointer and `str`
+as `struct { u8 *data; usize len; }`. A `str` carries its byte length and does
+not require a null terminator. The [terminology specification](terminology.md)
+distinguishes byte length (`len`) from element count (`count`).
+
+A transpiler can emit a non-null-terminated literal using an explicit byte
+initializer rather than a C string literal:
+
+```c
+char no_null[] = {'H', 'e', 'l', 'l', 'o'};
+str greeting = {(u8 *)no_null, sizeof(no_null)};
+```
+
+Here, `greeting.len` is 5 and no sixth terminator byte is emitted. Storage
+lifetime, encoding, and escape rules remain to be specified.
 
 ## 6. Iota
 
@@ -202,6 +215,59 @@ The `weak` and `strong` annotations apply to struct members and participate in
 automatic reference counting. Their precise retention and lifetime behavior
 remains to be specified.
 
+### 8.1. Runtime reference counting
+
+The C runtime's `rc` box contains a payload pointer and a signed `isize count`.
+The initial boxing chooses the mode:
+
+| Mode | Initial count | Retain | Release |
+| --- | --- | --- | --- |
+| Plain data | +1 | Increment away from zero | Decrement toward zero |
+| Object | -1 | Decrement away from zero | Increment toward zero |
+
+The absolute count is the number of strong references. Reaching zero invokes
+the cleanup handler passed to `rc_release`. The handler is supplied at release
+time, not stored in the box, and must match the payload's cleanup requirements.
+No destructor selector is implicitly looked up.
+
+The static inline functions `rc_box`, `rc_retain`, and `rc_release` implement
+these operations. `rc_count` returns the unsigned reference count and
+`rc_is_object` identifies object mode while the box is live. All owners share
+one box; copying an `rc` value does not share its counter.
+
+An empty box must be zero-initialized before boxing. Null payloads, live-box
+replacement, invalid retain/release, and missing release handlers are rejected.
+Retain detects signed counter overflow. Final release clears the box before
+calling the handler, preventing a reentrant release from freeing it twice.
+The initial implementation is non-atomic; weak-reference semantics remain open.
+
+### 8.2. Objects and classes
+
+`id` is the basic object header and contains a pointer to its `class`.
+Concrete object structs place this header first. A class contains a lookup
+function that maps a G `str` name to a function pointer, returning null when
+no method is found. Lookup must use the string's byte length, not assume a null
+terminator. `id_lookup` provides this operation for the C runtime.
+
+Classes follow a mulle-objc-style convention in which a method receives the
+object pointer first and writes its return value through the last argument.
+For example, an integer-returning `domath(int a, int b)` has this C shape:
+
+```c
+void domath(ptr self, int a, int b, int *ret);
+typedef void (*domath_method)(ptr self, int a, int b, int *ret);
+```
+
+The runtime's generic `func` is an erased function pointer used for lookup.
+It must be converted back to the exact method signature before calling.
+It is not a universal variadic calling convention.
+
+Class descriptors are normally supplied by libraries through external pointers,
+for example `extern const class *math_class;`, and linked into object programs.
+The C runtime declares the object header as `struct id { const class *cls; }`
+and the class as `struct class { func (*lookup)(str name); }`.
+Method-name encoding, overload resolution, and inheritance remain to be specified.
+
 ## 9. Data structures
 
 G supports C-style arrays as well as collection types backed by the `g` library.
@@ -212,7 +278,7 @@ The words `symbol` and `const` are placeholders.
 | --- | --- |
 | `[]T` | C-style array |
 | ``[`symbol]T`` | C-style array with a size hint referring to `symbol` |
-| `[#]T` | G-style array that includes its length |
+| `[#]T` | G-style array that includes its element count |
 | `[#K]T` | Dictionary with keys of type `K` and values of type `T` |
 | `[#K]()` | Set of values of type `K` |
 | `[#?]T` | Vector (growable array) |
@@ -223,7 +289,7 @@ The shorthand `[<>]T` denotes the fixed-size FIFO/FILO family. FIFO means
 first in, first out; FILO means first in, last out. How operations select these
 behaviors remains to be specified.
 
-The `#` in `[#]T` indicates that length is included with the array. The backtick
+The `#` in `[#]T` indicates that an element count is included with the array. The backtick
 in ``[`symbol]T`` introduces an array size hint to the compiler. These collection
 markers are part of type syntax, not preprocessor directives.
 
@@ -250,7 +316,7 @@ Future revisions need to define:
 - Library boundaries, library-name scope, symbol collisions, generated header naming, and C interoperability.
 - The full declaration grammar, initialization rules, and semicolon insertion rules.
 - Header search paths, C macro handling, G library resolution, imported-symbol references, and directive evaluation rules.
-- Primitive type mappings, `int`, `cstr`, `ptr`, and platform support for floating-point types.
+- Primitive type mappings, `int`, `ptr`, and platform support for floating-point types.
 - `iota` declaration syntax and constant evaluation.
 - Annotation placement, combinations, and arguments.
 - Ownership validation, use after move, lease restrictions, cleanup, and escaping pointers.
