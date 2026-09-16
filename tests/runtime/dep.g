@@ -1,0 +1,3 @@
+runtime := test {
+    .dep: {}
+}

@@ -1,0 +1,3 @@
+g := cmd {
+    .dep: {"buildfe"}
+}

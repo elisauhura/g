@@ -3,7 +3,7 @@
 #include "buildbe.h"
 
 /*
- * Initial frontend API; declarations only. Parsing project.g, discovering files,
+ * Frontend API implemented under lib/buildfe/. Loading project.g, discovering files,
  * planning dependencies, copying sources, and scheduling tool calls belong here.
  * Compilation/archive/link command syntax belongs to buildbe.h's backends.
  * These interfaces do not settle the still-open project.g configuration grammar.
@@ -168,6 +168,11 @@ typedef struct buildfe_translator {
 buildfe_result buildfe_project_load(const char *root, const char *project_file,
                                    const g_allocator *allocator, buildfe_project **out);
 void buildfe_project_destroy(buildfe_project *project);
+/* Discovery needs no build plan/compiler. Names are borrowed until project
+ * destruction. Invalid indices return NULL. */
+usize buildfe_project_unit_count(const buildfe_project *project);
+const char *buildfe_project_unit_name(const buildfe_project *project, usize index,
+                                    buildfe_unit_kind *kind);
 
 /*
  * Creation performs no build-output writes. On failure *out is null. The project,
@@ -187,6 +192,7 @@ const buildfe_stage *buildfe_plan_stages(const buildfe_plan *plan, usize *count)
 buildfe_result buildfe_plan_execute(buildfe_plan *plan, const buildbe_backend *backend,
                                    const buildfe_translator *translator);
 
+/* Cleanup planning/execution remains reserved for a future implementation. */
 typedef enum buildfe_clean_scope {
     BUILDFE_CLEAN_INVALID,
     BUILDFE_CLEAN_UNITS,
@@ -227,3 +233,6 @@ buildbe_strings buildfe_clean_plan_files(const buildfe_clean_plan *plan);
 buildfe_result buildfe_clean_plan_execute(buildfe_clean_plan *plan,
                                          const buildbe_backend *backend);
 void buildfe_clean_plan_destroy(buildfe_clean_plan *plan);
+
+/* Initial g command frontend: build is the only subcommand. */
+int buildfe_execute(int argc, char **argv);

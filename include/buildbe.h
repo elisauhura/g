@@ -3,9 +3,8 @@
 #include "g.h"
 
 /*
- * Initial backend API; declarations only. Platform implementations will live
- * under lib/buildbe/. No compiler discovery or process execution is implemented
- * by this header. Backend names describe target OS/compiler combinations, not
+ * Backend API implemented under lib/buildbe/. Tool paths come from the caller
+ * or the active compiler environment. Backend names describe target OS/compiler combinations, not
  * the host OS; check() must validate host tools and target compatibility.
  */
 #define BUILDBE_ABI 1u
@@ -194,3 +193,13 @@ extern const buildbe_backend buildbe_darwin;      /* darwin/clang: SDK-aware Cla
 /* Unsupported pairs (including unimplemented XK/bare-metal backends) return null. */
 const buildbe_backend *buildbe_select(buildbe_os os, buildbe_compiler compiler);
 u8 buildbe_valid(const buildbe_backend *backend);
+
+/* Host services used by the frontend, independent of the target compiler. */
+#define BUILDBE_PATH_MAX 4096
+typedef buildbe_result (*buildbe_visit)(void *context, const char *name, u8 directory);
+buildbe_result buildbe_host_list(const char *path, buildbe_visit visit, void *context);
+buildbe_result buildbe_host_absolute(const char *path, char *out, usize capacity);
+buildbe_result buildbe_host_mkdirs(const char *path);
+buildbe_result buildbe_host_info(const char *path, buildbe_file_info *out);
+buildbe_copy_result buildbe_host_copy(const buildbe_copy *request);
+buildbe_arch buildbe_host_arch(void);

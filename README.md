@@ -52,3 +52,32 @@ The [test library](lib/test/README.md) provides nested tests, artifact hooks, be
 ## Command-line arguments
 
 The [cmdline library](lib/cmdline/README.md) handles clustered short flags, long flags and parameters, positional arguments, and `--` tails for nested parsing.
+
+## Bootstrap and build
+
+On Windows with Visual Studio C++ tools installed:
+
+```powershell
+.\Setup.ps1
+.\g.exe build all
+```
+
+Setup initializes MSVC, builds `bootstrap-g`, uses it to build `g`, and copies
+`g.exe` to the repository root. An existing root executable skips bootstrapping;
+use `.\Setup.ps1 --force` to rebuild it. From a fresh shell, initialize MSVC with
+`. .\scripts\MSVCSetup.ps1` before calling `g.exe` directly.
+
+Each library, command, and test unit declares its dependencies in `dep.g`.
+Tests implicitly depend on `lib/test`. See the [build specification](spec/build.md)
+for syntax and target selection. Run `.\scripts\Test-Build.ps1` for build regressions.
+
+List available project units without building:
+
+```powershell
+.\g.exe lib list
+.\g.exe cmd list
+.\g.exe tests list
+```
+
+Lists print names alphabetically, one per line. Use `--project=PATH` to inspect
+another project; empty categories produce no output.

@@ -1,0 +1,3 @@
+cmdline := test {
+    .dep: {"cmdline"}
+}

@@ -2,7 +2,7 @@
 
 Status: initial draft. This document describes the established build-system
 goals and their relationship to the language. It does not yet define a complete
-build configuration format or command interface, or claim implemented behavior.
+build configuration format. Sections 2.1, 4.2, and 6.3 describe the initial C build implementation.
 
 ## 1. Purpose
 
@@ -37,8 +37,38 @@ The project layout identifies these locations:
 | `docs/md/` | Generated Markdown documentation |
 | `docs/html/` | Generated HTML documentation |
 
-Whether these directories imply automatic source discovery or require explicit
-configuration in `project.g` remains to be specified.
+The initial frontend discovers these unit directories automatically. `project.g`
+currently accepts only comments and whitespace as a project-root marker; the
+configuration grammar remains to be defined. Unit dependencies use `dep.g`.
+
+### 2.1. Unit dependency files
+
+Each direct child of `lib/`, `cmd/`, and `tests/` contains a `dep.g` file.
+The declared name must match the directory name. The declaration kind is
+`lib`, `cmd`, or `test`, respectively:
+
+```go
+libname := lib {
+    .dep: {"foo", "bar"}
+}
+```
+
+Commands and tests use the same form with `cmd` or `test` replacing `lib`.
+Dependencies refer to libraries under `lib/<name>/`, not command/test units.
+Every test unit implicitly depends on the `test` library; explicitly listing
+it is harmless. Missing libraries and dependency cycles are errors.
+
+The bootstrap grammar accepts an optional `.dep` field, an empty dependency
+list, comments, trailing commas, and an optional final semicolon. It rejects
+unknown fields and additional declarations. Names are ASCII identifiers with
+optional digits, underscores, and hyphens after the first character. Repeated
+dependencies are deduplicated. Dependency versioning and external fetching
+remain future work.
+
+The frontend discovers C sources and local headers recursively inside each
+unit, excluding `dep.g`. Shared headers come from `include/`. Required
+libraries are built before consumers. Link inputs preserve transitive dependency
+order, including when dependencies are shared by several libraries.
 
 ## 3. G and C integration
 
@@ -57,8 +87,8 @@ process:
 - `export` identifies symbols exposed through the single generated header per
   library. Exported C names use the library prefix unless annotated with `@c`.
 
-These rules describe language behavior. Dependency lookup and build ordering
-still need build-system definitions. Default artifact locations are described
+These rules describe planned language behavior. Initial explicit dependencies
+use dep.g; resolving G imports remains future work. Default artifact locations are described
 in section 5.
 
 ## 4. Build flow
@@ -73,15 +103,15 @@ At a conceptual level, building a G project involves the following work:
 5. Link the required libraries and produce the target's build outputs under
    `out/<target>/` by default.
 
-This is an outline of responsibilities, not a fixed execution order or a command
-specification. The task graph, compiler invocation, link behavior, and output
-formats remain to be specified.
+This outlines the complete G pipeline. The initial implementation stages C sources,
+then compiles, archives, and links units in dependency order.
 
 ### 4.1. Frontend and backend interfaces
 
-The initial C interfaces are declared in [buildfe.h](../include/buildfe.h) and
-[buildbe.h](../include/buildbe.h). These headers define contracts; their build
-operations are not implemented yet.
+The C interfaces are declared in [buildfe.h](../include/buildfe.h) and
+[buildbe.h](../include/buildbe.h), with implementations in `lib/buildfe/` and
+`lib/buildbe/`. The initial implementation builds C projects; G translation
+callbacks and cleanup interfaces remain reserved.
 
 The frontend plans source staging, dependencies, G translation, and library
 header generation. Existing C files are copied into the target's source tree,
@@ -96,11 +126,40 @@ the operation. An explicit always-copy mode handles changes that timestamps
 cannot detect. This selects whole files to copy, not byte ranges, and does not
 by itself establish that compilation or linking can be skipped.
 
-Cleanup plans select unit or target outputs, with separate flags for staged
+The reserved cleanup interfaces describe unit or target outputs, with separate flags for staged
 sources, intermediates, and final products. They expose an explicit owned-file
 list, support dry runs, and invalidate affected incremental state. Shared outputs
 are retained when still owned by unselected units. Cleanup is confined to recorded
 outputs under the target output root and never removes original sources.
+
+### 4.2. Initial build command
+
+```text
+g build [all|lib/name|cmd/name|tests/name ...]
+        [--project=PATH] [--target=OS/BACKEND] [--arch=amd64|arm64] [--force]
+```
+
+With no unit selection, all units are built. `--project` defaults to the current
+directory. Target defaults are Windows/MSVC, Linux/GCC, or Darwin/Clang, using
+the executable's native architecture. Linux/Clang is selectable explicitly.
+Output directories are named `out/<os>-<arch>-<backend>/`.
+
+MSVC builds require an initialized developer environment. On Windows, dot-source
+`scripts/MSVCSetup.ps1` before invoking `g` directly from a fresh shell.
+Cross-target MSVC environments can be selected with the script's
+`-Architecture amd64` or `-Architecture arm64` argument and matching CLI option.
+The initial POSIX backends support native builds only.
+
+Commands produce `exe/<name>.exe` on Windows and `exe/<name>` on POSIX.
+Tests use `exe/test-<name>[.exe]` to avoid collisions with command names.
+Object files preserve source-relative paths with an added `.obj` suffix.
+Test archives use `obj/tests/<name>.lib`. Archive extensions are `.lib`
+for all backends; contents are produced by the selected archiver.
+
+Copying is incremental; compilation, archiving, and linking currently rerun.
+`--force` bypasses copy reuse. Building tests does not run them. The only
+implemented build subcommand is `build`; cleanup and symbol inspection interfaces
+remain reserved.
 
 ## 5. Targets and output layout
 
@@ -129,8 +188,7 @@ or a guarantee that every architecture, OS, and backend combination is valid.
 ### 5.2. Output layout
 
 By default, generated build outputs are placed under `out/<target>/` at the
-project root, where `<target>` is the target name. The mapping from target
-notation to the output directory name remains to be specified.
+project root, where `<target>` is the target name. The initial directory name is `<os>-<arch>-<backend>`.
 
 Each target has the following output layout:
 
@@ -155,9 +213,11 @@ For a command named `cmdname`, the corresponding paths are
 `obj/cmd/cmdname.lib` and `obj/cmd/cmdname/`. All of these paths are relative to
 `out/<target>/`.
 
-The `.lib` paths above record the build layout; their binary format and
-platform-specific handling remain to be specified. Test object-file placement
-and individual object and executable filenames also remain to be specified.
+The initial implementation uses MSVC libraries on Windows and ar archives on
+POSIX, retaining the `.lib` suffix. Tests use `obj/tests/<name>.lib` and
+`obj/tests/<name>/`. Objects preserve relative source paths with a `.obj`
+extension. Commands produce `exe/<name>` and tests `exe/test-<name>`, with
+`.exe` appended on Windows. Units containing no C sources have no archive.
 
 ## 6. Bootstrapping the G toolchain
 
@@ -179,7 +239,7 @@ code-generation work required by the full project.
 The subset must avoid depending on outputs that can only be generated by the
 complete `g` command; otherwise the initial build would have a circular
 dependency. The exact source subset and how its initial sources are supplied
-remain to be specified.
+are explicit in Setup.ps1 for the initial C implementation.
 
 ### 6.2. Build the complete command
 
@@ -196,21 +256,51 @@ builds. `bootstrap-g` serves as the initial tool needed to reach that stage.
 | Bootstrap | Required subset of project files | Scripts in `scripts/` and their compiler toolchain | `bootstrap-g` command |
 | Complete build | Whole project, including its G implementation sources | `bootstrap-g` | Complete `g` command |
 
-Script filenames, invocation syntax, prerequisites, the bootstrap language
-subset, and bootstrap artifact locations remain to be specified.
+### 6.3. Initial Windows bootstrap
+
+Run `Setup.ps1` from the repository root. It dot-sources
+`scripts/MSVCSetup.ps1` to discover Visual Studio C++ tools and initialize
+MSVC for the native AMD64 or ARM64 target.
+
+If root-level `g.exe` exists, setup stops after environment initialization.
+Use `Setup.ps1 --force` (or `-Force`) to bootstrap again:
+
+1. Compile the C bootstrap subset (the command, cmdline library, frontend, and
+   backend) into `out/bootstrap/<arch>/bootstrap-g.exe`.
+2. Run `bootstrap-g build cmd/g` with the project root and MSVC target.
+3. Copy `out/windows-<arch>-msvc/exe/g.exe` to root-level `g.exe`.
+
+Every compiler/build failure stops setup before the root executable is copied.
+The source list is explicit so bootstrap does not need dependency parsing before
+the first executable exists. The second stage uses the native frontend's
+`dep.g` graph and the normal staging/compile/archive/link pipeline.
+
+This initial bootstrap supports C implementation sources. G translation callbacks
+are reserved in the frontend API; G source files currently fail before staging
+instead of being passed to a C compiler.
 
 ## 7. Details to specify
 
 Future revisions need to define:
 
 - `project.g` syntax, evaluation, and how build targets are declared.
-- Build commands, arguments, defaults, and configuration selection.
-- Source discovery, library resolution, dependency versions, and vendoring.
+- Additional commands and project-level configuration selection.
+- External library resolution, dependency versions, and vendoring.
 - Compiler and linker selection, flags, and platform configuration.
-- Output-directory overrides, individual artifact names, test object-file placement,
-  and platform-specific artifact formats.
+- Output-directory overrides and configurable artifact naming.
 - How the supporting `g` C library is located, built, and linked.
 - Incremental builds, dependency tracking, caching, and parallel execution.
 - Test execution and documentation-generation integration.
 - Diagnostics, failure handling, and cleaning build outputs.
-- Bootstrap scripts, prerequisites, source subset, supported G features, and artifact locations.
+- The future G bootstrap language subset and non-Windows setup entry points.
+
+## Project listings
+
+`g lib list`, `g cmd list`, and `g tests list` list declared libraries,
+commands, and tests respectively. Each accepts `--project=PATH` or
+`--project PATH` (default: current directory). Output consists of bare unit
+names sorted alphabetically, one per line; an empty category prints nothing.
+Discovery validates the project and dependency manifests using the same frontend
+as builds. Listing requires no compiler, creates no build output, and does not
+create a build plan. Exit codes are 0 for success, 1 for project errors, and
+2 for invalid command arguments.

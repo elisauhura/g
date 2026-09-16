@@ -1,0 +1,3 @@
+buildbe := lib {
+    .dep: {}
+}
