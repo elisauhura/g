@@ -48,3 +48,7 @@ project.g                            Root project configuration and dependencies
 ## Testing
 
 The [test library](lib/test/README.md) provides nested tests, artifact hooks, benchmarks, JSON reports, and streamed test events. Registration is explicit until the G build tool can generate it.
+
+## Command-line arguments
+
+The [cmdline library](lib/cmdline/README.md) handles clustered short flags, long flags and parameters, positional arguments, and `--` tails for nested parsing.
